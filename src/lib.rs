@@ -32,6 +32,7 @@ impl<L: OutputPin, C: OutputPin, I: InputPin, D: ShiftClockDelay, const N: usize
         }
     }
 
+    /// Read in all the data
     pub fn read(&mut self) -> [u8; N] {
         let mut data = [0; N];
         let _ = self.clock.set_low();
