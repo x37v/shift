@@ -69,19 +69,32 @@ where
 mod tests {
     use super::*;
     use embedded_hal::digital::v2::{InputPin, OutputPin};
+    use std::sync::atomic::{AtomicUsize, Ordering};
 
     struct Input {
-        high: bool,
+        pattern: usize,
+        index: AtomicUsize,
     }
     struct Output;
+
+    impl Input {
+        pub fn new(pattern: usize) -> Self {
+            Self {
+                pattern,
+                index: AtomicUsize::new(0),
+            }
+        }
+    }
 
     impl InputPin for Input {
         type Error = ();
         fn is_high(&self) -> Result<bool, Self::Error> {
-            Ok(self.high)
+            let index = self.index.fetch_add(1, Ordering::SeqCst);
+            Ok(self.pattern & (1 << index) != 0)
         }
         fn is_low(&self) -> Result<bool, Self::Error> {
-            Ok(!self.high)
+            let index = self.index.fetch_add(1, Ordering::SeqCst);
+            Ok(self.pattern & (1 << index) == 0)
         }
     }
 
@@ -103,7 +116,7 @@ mod tests {
     fn on_off() {
         let latch = Output;
         let clock = Output;
-        let input = Input { high: false };
+        let input = Input::new(0);
 
         let mut shift = ShiftIn::new(latch, clock, input, delayer);
         let res: [u8; 1] = shift.read();
@@ -111,11 +124,29 @@ mod tests {
 
         let latch = Output;
         let clock = Output;
-        let input = Input { high: true };
+        let input = Input::new(0xFFFF);
 
         let mut shift = ShiftIn::new(latch, clock, input, delayer);
-        let res: [u8; 2] = shift.read();
+        let mut res: [u8; 2] = shift.read();
         assert_eq!(res[0], 0xFF);
         assert_eq!(res[1], 0xFF);
+        res = shift.read();
+        assert_eq!(res[0], 0);
+        assert_eq!(res[1], 0);
+
+        let latch = Output;
+        let clock = Output;
+        let input = Input::new(0xc2310);
+
+        let mut shift = ShiftIn::new(latch, clock, input, delayer);
+        let mut res: [u8; 2] = shift.read();
+        assert_eq!(res[0], 0xc4);
+        assert_eq!(res[1], 0x08);
+        res = shift.read();
+        assert_eq!(res[0], 0);
+        assert_eq!(res[1], 0x30);
+        res = shift.read();
+        assert_eq!(res[0], 0);
+        assert_eq!(res[1], 0);
     }
 }
