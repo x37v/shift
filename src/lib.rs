@@ -69,8 +69,8 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use core::sync::atomic::{AtomicUsize, Ordering};
     use embedded_hal::digital::v2::{InputPin, OutputPin};
-    use std::sync::atomic::{AtomicUsize, Ordering};
 
     struct Input {
         pattern: usize,
