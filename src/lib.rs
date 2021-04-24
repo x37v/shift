@@ -1,3 +1,4 @@
+#![no_std]
 use embedded_hal::digital::v2::{InputPin, OutputPin};
 
 pub struct ShiftIn<L: OutputPin, C: OutputPin, I: InputPin, D: ShiftClockDelay, const N: usize> {
