@@ -43,7 +43,6 @@ impl<
         let _ = self.clock.set_low();
         let _ = self.latch.set_high();
         delay.delay_us(DELAY_LATCH_HIGH);
-        let _ = self.latch.set_low();
         for byte in &mut data.iter_mut().rev() {
             for bit in (0..8).rev() {
                 let _ = self.clock.set_low();
@@ -57,6 +56,7 @@ impl<
                 delay.delay_us(DELAY_CLOCK_HIGH);
             }
         }
+        let _ = self.latch.set_low();
         data
     }
 }
