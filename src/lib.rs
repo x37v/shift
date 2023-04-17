@@ -1,69 +1,63 @@
 #![no_std]
-use embedded_hal::digital::v2::{InputPin, OutputPin};
+use embedded_hal::{
+    blocking::delay::DelayUs,
+    digital::v2::{InputPin, OutputPin},
+};
 
-pub struct ShiftIn<L: OutputPin, C: OutputPin, I: InputPin, D: ShiftClockDelay, const N: usize> {
+pub struct ShiftIn<
+    L: OutputPin,
+    C: OutputPin,
+    I: InputPin,
+    const DELAY_LATCH_HIGH: u8,
+    const DELAY_CLOCK_LOW: u8,
+    const DELAY_CLOCK_HIGH: u8,
+> {
     latch: L,
     clock: C,
     input: I,
-    delay: D,
 }
 
-pub enum Delay {
-    LatchHigh,
-    ClockLow,
-    ClockHigh,
-}
-
-pub trait ShiftClockDelay {
-    fn delay(&self, delay: Delay);
-}
-
-impl<L: OutputPin, C: OutputPin, I: InputPin, D: ShiftClockDelay, const N: usize>
-    ShiftIn<L, C, I, D, N>
+impl<
+        L: OutputPin,
+        C: OutputPin,
+        I: InputPin,
+        const DELAY_LATCH_HIGH: u8,
+        const DELAY_CLOCK_LOW: u8,
+        const DELAY_CLOCK_HIGH: u8,
+    > ShiftIn<L, C, I, DELAY_LATCH_HIGH, DELAY_CLOCK_LOW, DELAY_CLOCK_HIGH>
 {
     /// Create a new shift in
-    pub fn new(mut latch: L, mut clock: C, input: I, delay: D) -> Self {
+    pub fn new(mut latch: L, mut clock: C, input: I) -> Self {
         let _ = clock.set_low();
         let _ = latch.set_low();
         Self {
             latch,
             clock,
             input,
-            delay,
         }
     }
 
     /// Read in all the data
-    pub fn read(&mut self) -> [u8; N] {
+    pub fn read<const N: usize>(&mut self, delay: &mut dyn DelayUs<u8>) -> [u8; N] {
         let mut data = [0; N];
         let _ = self.clock.set_low();
         let _ = self.latch.set_high();
-        self.delay.delay(Delay::LatchHigh);
+        delay.delay_us(DELAY_LATCH_HIGH);
         let _ = self.latch.set_low();
         for byte in &mut data.iter_mut().rev() {
             for bit in (0..8).rev() {
                 let _ = self.clock.set_low();
-                self.delay.delay(Delay::ClockLow);
+                delay.delay_us(DELAY_CLOCK_LOW);
                 if let Ok(h) = self.input.is_high() {
                     if h {
                         *byte = *byte | (1 << bit);
                     }
                 }
                 let _ = self.clock.set_high();
-                self.delay.delay(Delay::ClockHigh);
+                delay.delay_us(DELAY_CLOCK_HIGH);
             }
         }
-
         data
-    }
-}
-
-impl<F> ShiftClockDelay for F
-where
-    F: Fn(Delay),
-{
-    fn delay(&self, d: Delay) {
-        self(d)
     }
 }
 
@@ -110,8 +104,12 @@ mod tests {
         }
     }
 
-    pub fn delayer(_d: Delay) {
-        //do nothing
+    struct FakeDelay;
+
+    impl embedded_hal::blocking::delay::DelayUs<u8> for FakeDelay {
+        fn delay_us(&mut self, _v: u8) {
+            //do nothing
+        }
     }
 
     #[test]
@@ -119,20 +117,21 @@ mod tests {
         let latch = Output;
         let clock = Output;
         let input = Input::new(0);
+        let mut delay = FakeDelay;
 
-        let mut shift = ShiftIn::new(latch, clock, input, delayer);
-        let res: [u8; 1] = shift.read();
+        let mut shift: ShiftIn<_, _, _, 1, 1, 1> = ShiftIn::new(latch, clock, input);
+        let res: [u8; 1] = shift.read(&mut delay);
         assert_eq!(res[0], 0);
 
         let latch = Output;
         let clock = Output;
         let input = Input::new(0xFFFF);
 
-        let mut shift = ShiftIn::new(latch, clock, input, delayer);
-        let mut res: [u8; 2] = shift.read();
+        let mut shift: ShiftIn<_, _, _, 1, 1, 1> = ShiftIn::new(latch, clock, input);
+        let mut res: [u8; 2] = shift.read(&mut delay);
         assert_eq!(res[0], 0xFF);
         assert_eq!(res[1], 0xFF);
-        res = shift.read();
+        res = shift.read(&mut delay);
         assert_eq!(res[0], 0);
         assert_eq!(res[1], 0);
 
@@ -140,14 +139,14 @@ mod tests {
         let clock = Output;
         let input = Input::new(0xc2310);
 
-        let mut shift = ShiftIn::new(latch, clock, input, delayer);
-        let mut res: [u8; 2] = shift.read();
+        let mut shift: ShiftIn<_, _, _, 1, 1, 1> = ShiftIn::new(latch, clock, input);
+        let mut res: [u8; 2] = shift.read(&mut delay);
         assert_eq!(res[0], 0xc4);
         assert_eq!(res[1], 0x08);
-        res = shift.read();
+        res = shift.read(&mut delay);
         assert_eq!(res[0], 0);
         assert_eq!(res[1], 0x30);
-        res = shift.read();
+        res = shift.read(&mut delay);
         assert_eq!(res[0], 0);
         assert_eq!(res[1], 0);
     }

@@ -1,9 +1,9 @@
 [package]
 name = "shift"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Alex Norman <alex@x37v.info>"]
-edition = "2018"
+edition = "2021"
 rust = "1.51"
 
 [dependencies]
-embedded-hal = {version = "0.2.4", features = ["unproven"] }
+embedded-hal = {version = "0.2.7", features = ["unproven"] }
